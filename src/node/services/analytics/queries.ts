@@ -856,7 +856,9 @@ export async function executeRawQuery(
     columns,
     rows: rows.map(normalizeDuckDbRow),
     truncated,
-    rowCount: rows.length,
+    // Use rawRows.length so callers see the pre-slice count when truncated
+    // (the LIMIT N+1 query tells us at least this many rows matched).
+    rowCount: rawRows.length,
     durationMs,
   };
 }

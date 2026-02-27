@@ -2,11 +2,14 @@ import assert from "@/common/utils/assert";
 import type { ChartType, ColumnMeta } from "./types";
 
 export function isNumericType(type: string): boolean {
-  return /int|double|float|decimal|numeric|bigint|real/i.test(type);
+  // Word-boundary anchored to avoid false positives (e.g. INTERVAL matching "int").
+  return /\b(?:integer|int|smallint|tinyint|bigint|hugeint|double|float|decimal|numeric|real)\b/i.test(
+    type
+  );
 }
 
 export function isDateType(type: string): boolean {
-  return /date|timestamp/i.test(type);
+  return /\b(?:date|timestamp)\b/i.test(type);
 }
 
 /**

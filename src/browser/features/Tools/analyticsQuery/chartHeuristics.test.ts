@@ -12,6 +12,9 @@ describe("isNumericType", () => {
   test("rejects non-numeric SQL types", () => {
     expect(isNumericType("VARCHAR")).toBe(false);
     expect(isNumericType("DATE")).toBe(false);
+    // Word-boundary guard: INTERVAL contains "int" but is not numeric.
+    expect(isNumericType("INTERVAL")).toBe(false);
+    expect(isNumericType("POINT")).toBe(false);
   });
 });
 
