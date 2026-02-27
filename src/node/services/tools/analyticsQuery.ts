@@ -38,10 +38,12 @@ export const createAnalyticsQueryTool: ToolFactory = (config) => {
         assertRecord(queryResult);
 
         // Cap rows to avoid blowing up the LLM tool-message context.
-        // rowCount reflects the actual query result size; truncated is
-        // set when the returned rows are fewer than the full result.
+        // Preserve the backend's rowCount (which reflects the pre-slice
+        // total, including the +1 overflow detection row) so callers see
+        // the true result cardinality even when rows are capped here.
         const allRows = queryResult.rows as Array<Record<string, unknown>>;
         assert(Array.isArray(allRows), "Expected rows array in query result");
+        const backendRowCount = queryResult.rowCount as number;
         const cappedRows = allRows.slice(0, TOOL_RESULT_ROW_LIMIT);
         const truncated =
           (queryResult.truncated as boolean) === true || allRows.length > TOOL_RESULT_ROW_LIMIT;
@@ -50,7 +52,7 @@ export const createAnalyticsQueryTool: ToolFactory = (config) => {
           success: true,
           ...queryResult,
           rows: cappedRows,
-          rowCount: allRows.length,
+          rowCount: Math.max(backendRowCount, allRows.length),
           truncated,
           ...(visualization != null ? { visualization } : {}),
           ...(title != null ? { title } : {}),
