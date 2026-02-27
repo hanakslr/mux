@@ -787,22 +787,45 @@ function maskRawQueryLiteralsAndComments(
 
 /**
  * Check whether a position in SQL is inside a single-quoted string literal.
- * Counts unescaped single quotes before the position: odd count = inside.
- * Escaped quotes ('') are skipped as a pair and don't flip the parity.
+ * Tracks both single-quoted strings and double-quoted identifiers so that
+ * single quotes inside `"identifier'with'quotes"` don't flip the parity.
  */
 function isInsideStringLiteral(sql: string, position: number): boolean {
-  let quoteCount = 0;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
   for (let i = 0; i < position; i++) {
-    if (sql[i] === "'") {
-      // Escaped quote ('') — skip both and don't count
-      if (sql[i + 1] === "'") {
-        i += 1;
-        continue;
+    const ch = sql[i];
+    if (inDoubleQuote) {
+      // Double-quoted identifier: skip until closing "
+      if (ch === '"') {
+        // "" is an escaped double quote inside an identifier
+        if (sql[i + 1] === '"') {
+          i += 1;
+          continue;
+        }
+        inDoubleQuote = false;
       }
-      quoteCount += 1;
+      continue;
+    }
+    if (inSingleQuote) {
+      if (ch === "'") {
+        // '' is an escaped single quote inside a string
+        if (sql[i + 1] === "'") {
+          i += 1;
+          continue;
+        }
+        inSingleQuote = false;
+      }
+      continue;
+    }
+    // Not inside any quote context
+    if (ch === "'") {
+      inSingleQuote = true;
+    } else if (ch === '"') {
+      inDoubleQuote = true;
     }
   }
-  return quoteCount % 2 === 1;
+  return inSingleQuote;
 }
 
 /**
