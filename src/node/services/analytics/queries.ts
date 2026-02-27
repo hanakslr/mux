@@ -786,6 +786,26 @@ function maskRawQueryLiteralsAndComments(
 }
 
 /**
+ * Check whether a position in SQL is inside a single-quoted string literal.
+ * Counts unescaped single quotes before the position: odd count = inside.
+ * Escaped quotes ('') are skipped as a pair and don't flip the parity.
+ */
+function isInsideStringLiteral(sql: string, position: number): boolean {
+  let quoteCount = 0;
+  for (let i = 0; i < position; i++) {
+    if (sql[i] === "'") {
+      // Escaped quote ('') — skip both and don't count
+      if (sql[i + 1] === "'") {
+        i += 1;
+        continue;
+      }
+      quoteCount += 1;
+    }
+  }
+  return quoteCount % 2 === 1;
+}
+
+/**
  * Security model for raw analytics SQL validation:
  * 1) mask comments while preserving string literals,
  * 2) block DuckDB replacement scans that use string literals as table sources,
@@ -798,10 +818,17 @@ function validateRawQuerySql(cleanSql: string): void {
     maskStrings: false,
   });
 
-  if (RAW_QUERY_REPLACEMENT_SCAN_PATTERN.test(commentMaskedSql)) {
-    throw new Error(
-      "String literals cannot be used as table sources (DuckDB replacement scans are not allowed)"
-    );
+  // Check for DuckDB replacement scans (FROM/JOIN 'filepath'), but skip
+  // matches inside a string literal to avoid false positives from queries
+  // like: WHERE note = 'data from ''somewhere'''
+  const scanRegex = new RegExp(RAW_QUERY_REPLACEMENT_SCAN_PATTERN.source, "gi");
+  let scanMatch: RegExpExecArray | null;
+  while ((scanMatch = scanRegex.exec(commentMaskedSql)) != null) {
+    if (!isInsideStringLiteral(commentMaskedSql, scanMatch.index)) {
+      throw new Error(
+        "String literals cannot be used as table sources (DuckDB replacement scans are not allowed)"
+      );
+    }
   }
 
   const fullyMaskedSql = maskRawQueryLiteralsAndComments(commentMaskedSql);

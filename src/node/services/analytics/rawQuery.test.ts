@@ -236,6 +236,23 @@ describe("executeRawQuery", () => {
     expect(result.rows).toEqual([{ request_count: 1 }]);
   });
 
+  test("allows string literals containing FROM keyword without false positive", async () => {
+    const { conn, runMock } = createMockConn(() =>
+      createMockResult({
+        columns: [{ name: "cnt", type: "BIGINT" }],
+        rows: [{ cnt: 3n }],
+      })
+    );
+
+    // The string literal contains "from '" which should NOT trigger replacement scan rejection
+    const sql = "SELECT COUNT(*) AS cnt FROM events WHERE model = 'data from ''somewhere'''";
+
+    const result = await executeRawQuery(conn, sql);
+
+    expect(runMock).toHaveBeenCalledWith(`SELECT * FROM (${sql}) AS __q LIMIT 10001`);
+    expect(result.rows).toEqual([{ cnt: 3 }]);
+  });
+
   test("rejects queries using read_json", async () => {
     await expectValidationFailure(
       "SELECT * FROM read_json('/tmp/data.json')",
