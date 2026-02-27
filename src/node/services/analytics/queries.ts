@@ -843,7 +843,10 @@ function isInsideStringLiteral(sql: string, position: number): boolean {
       inDoubleQuote = true;
     }
   }
-  return inSingleQuote;
+  // Return true when inside either quote context — a FROM/JOIN '...'
+  // match inside either a string literal or a double-quoted identifier
+  // is a false positive for the replacement-scan check.
+  return inSingleQuote || inDoubleQuote;
 }
 
 /**

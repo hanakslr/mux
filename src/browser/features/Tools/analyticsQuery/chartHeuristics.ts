@@ -66,8 +66,11 @@ export function inferAxes(
     .map((column) => column.name);
   const numericColumnNames = new Set(numericColumns);
 
+  // Prefer date column for x-axis (produces correct line charts for time-series),
+  // then fall back to first non-numeric column, then first column.
   const xAxis =
     (explicitX && allColumnNames.has(explicitX) ? explicitX : undefined) ??
+    columns.find((column) => isDateType(column.type))?.name ??
     columns.find((column) => !isNumericType(column.type))?.name ??
     columns[0]?.name ??
     "";
