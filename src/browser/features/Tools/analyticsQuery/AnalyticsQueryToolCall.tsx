@@ -71,7 +71,13 @@ function isAnalyticsQuerySuccessResult(
     return false;
   }
 
-  return Array.isArray(result.columns) && Array.isArray(result.rows);
+  return (
+    Array.isArray(result.columns) &&
+    Array.isArray(result.rows) &&
+    // Guard against corrupted persisted tool output that may lack numeric fields.
+    typeof result.rowCount === "number" &&
+    typeof result.durationMs === "number"
+  );
 }
 
 function escapeDoubleQuotes(value: string): string {
