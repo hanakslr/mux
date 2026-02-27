@@ -341,7 +341,9 @@ describe("executeRawQuery", () => {
     const result = await executeRawQuery(conn, "SELECT rank FROM events");
 
     expect(result.truncated).toBe(true);
-    expect(result.rowCount).toBe(RAW_QUERY_ROW_LIMIT);
+    // rowCount reflects the pre-slice total (how many rows the query produced),
+    // not the capped output size.
+    expect(result.rowCount).toBe(RAW_QUERY_ROW_LIMIT + 10);
     expect(result.rows).toHaveLength(RAW_QUERY_ROW_LIMIT);
     expect(result.rows[0]).toEqual({ rank: 0 });
     expect(result.rows.at(-1)).toEqual({ rank: RAW_QUERY_ROW_LIMIT - 1 });
