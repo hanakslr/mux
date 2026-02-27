@@ -75,9 +75,16 @@ function isAnalyticsQuerySuccessResult(
     Array.isArray(result.columns) &&
     Array.isArray(result.rows) &&
     // Guard against corrupted persisted tool output that may lack numeric fields
-    // or contain malformed row entries (e.g., null values from truncated writes).
+    // or contain malformed entries (e.g., null values from truncated writes).
     typeof result.rowCount === "number" &&
     typeof result.durationMs === "number" &&
+    result.columns.every(
+      (col) =>
+        col != null &&
+        typeof col === "object" &&
+        typeof col.name === "string" &&
+        typeof col.type === "string"
+    ) &&
     result.rows.every((row) => row != null && typeof row === "object" && !Array.isArray(row))
   );
 }
