@@ -723,6 +723,24 @@ function maskRawQueryLiteralsAndComments(
     const char = characters[index];
     const nextChar = characters[index + 1];
 
+    // Skip double-quoted identifiers so single quotes inside them
+    // (e.g. "foo'bar") don't trigger string literal masking.
+    if (char === '"') {
+      index += 1;
+      while (index < characters.length) {
+        if (characters[index] === '"' && characters[index + 1] === '"') {
+          index += 2; // escaped "" inside identifier
+          continue;
+        }
+        if (characters[index] === '"') {
+          index += 1;
+          break;
+        }
+        index += 1;
+      }
+      continue;
+    }
+
     if (char === "'") {
       if (shouldMaskStrings) {
         characters[index] = " ";
