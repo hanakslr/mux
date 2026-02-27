@@ -248,6 +248,7 @@ export async function resolveAgentForStream(
           { regex_match: "todo_write", action: "enable" },
           { regex_match: "status_set", action: "enable" },
           { regex_match: "notify", action: "enable" },
+          { regex_match: "analytics_query", action: "enable" },
         ]
       : undefined;
 

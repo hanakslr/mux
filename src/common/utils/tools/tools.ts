@@ -14,6 +14,7 @@ import { createProposePlanTool } from "@/node/services/tools/propose_plan";
 import { createTodoWriteTool, createTodoReadTool } from "@/node/services/tools/todo";
 import { createStatusSetTool } from "@/node/services/tools/status_set";
 import { createNotifyTool } from "@/node/services/tools/notify";
+import { createAnalyticsQueryTool } from "@/node/services/tools/analyticsQuery";
 import { createTaskTool } from "@/node/services/tools/task";
 import { createTaskApplyGitPatchTool } from "@/node/services/tools/task_apply_git_patch";
 import { createTaskAwaitTool } from "@/node/services/tools/task_await";
@@ -98,6 +99,10 @@ export interface ToolConfiguration {
   availableSkills?: AgentSkillDescriptor[];
   /** Whether the project is trusted for hook/script execution */
   trusted?: boolean;
+  /** Analytics service for raw SQL queries against DuckDB analytics data */
+  analyticsService?: {
+    executeRawQuery(sql: string): Promise<unknown>;
+  };
 }
 
 /**
@@ -346,6 +351,11 @@ export async function getToolsForModel(
     todo_read: createTodoReadTool(config),
     status_set: createStatusSetTool(config),
     notify: createNotifyTool(config),
+    ...(config.analyticsService
+      ? {
+          analytics_query: createAnalyticsQueryTool(config),
+        }
+      : {}),
   };
 
   // Base tools available for all models

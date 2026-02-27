@@ -1636,6 +1636,7 @@ export function getAvailableTools(
     "todo_read",
     "status_set",
     "notify",
+    "analytics_query",
     "web_fetch",
   ];
 
