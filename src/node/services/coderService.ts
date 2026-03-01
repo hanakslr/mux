@@ -730,7 +730,17 @@ export class CoderService {
         deploymentUrl
       ).toString();
 
-      const response = await fetch(url, {
+      // Electron's Node.js fetch doesn't trust the system certificate store,
+      // which breaks behind TLS-intercepting proxies (e.g. Cloudflare Zero Trust).
+      // Electron's net.fetch uses Chromium's network stack which does.
+      let fetchFn: (input: string, init?: RequestInit) => Promise<Response> = fetch;
+      if (process.versions.electron) {
+        // eslint-disable-next-line no-restricted-syntax
+        const { net } = await import("electron");
+        fetchFn = net.fetch;
+      }
+
+      const response = await fetchFn(url, {
         headers: {
           "Coder-Session-Token": api.token,
         },
