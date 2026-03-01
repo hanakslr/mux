@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/common/lib/utils";
 import { isDesktopMode } from "@/browser/hooks/useDesktopTitlebar";
+import { useExternalCoderWorkspaces } from "@/browser/hooks/useExternalCoderWorkspaces";
+import { ExternalCoderWorkspaceItem } from "@/browser/components/ExternalCoderWorkspaceItem/ExternalCoderWorkspaceItem";
+import type { ExternalCoderWorkspace } from "@/common/orpc/schemas/coder";
 import MuxLogoDark from "@/browser/assets/logos/mux-logo-dark.svg?react";
 import MuxLogoLight from "@/browser/assets/logos/mux-logo-light.svg?react";
 import { useTheme } from "@/browser/contexts/ThemeContext";
@@ -451,6 +454,9 @@ const ProjectSidebarInner: React.FC<ProjectSidebarProps> = ({
   const { confirm: confirmDialog } = useConfirmDialog();
   const settings = useSettings();
 
+  // External Coder workspaces (not managed by Mux) — shown as second-class citizens
+  const { workspaces: externalCoderWorkspaces } = useExternalCoderWorkspaces();
+
   // Get project state and operations from context
   const {
     userProjects,
@@ -884,6 +890,24 @@ const ProjectSidebarInner: React.FC<ProjectSidebarProps> = ({
     // projectPathsSignature captures projects Map keys
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [projectPathsSignature, projectOrder]
+  );
+
+  // Open a new workspace draft so the user can create a Mux workspace backed by
+  // the clicked external Coder workspace. Uses the currently selected project or
+  // falls back to the first available project.
+  // TODO: Pre-fill the Coder workspace name in the creation form so the user
+  // doesn't have to re-select it manually.
+  const handleOpenExternalCoderWorkspace = useCallback(
+    (_workspaceName: string) => {
+      const projectPath = selectedWorkspace?.projectPath ?? sortedProjectPaths[0];
+      if (!projectPath) {
+        // No projects exist — open the add project modal instead
+        onAddProject();
+        return;
+      }
+      handleAddWorkspace(projectPath);
+    },
+    [selectedWorkspace, sortedProjectPaths, onAddProject, handleAddWorkspace]
   );
 
   const handleReorder = useCallback(
@@ -1568,6 +1592,12 @@ const ProjectSidebarInner: React.FC<ProjectSidebarProps> = ({
                   })
                 )}
               </div>
+              {externalCoderWorkspaces.length > 0 && (
+                <ExternalCoderWorkspacesSection
+                  workspaces={externalCoderWorkspaces}
+                  onOpenInMux={handleOpenExternalCoderWorkspace}
+                />
+              )}
             </>
           )}
           <SidebarCollapseButton
@@ -1619,6 +1649,49 @@ const ProjectSidebarInner: React.FC<ProjectSidebarProps> = ({
     </TitleEditProvider>
   );
 };
+
+/**
+ * Collapsible section showing external Coder workspaces that aren't managed by Mux.
+ * These are second-class citizens — visually subdued and placed below all user projects.
+ */
+function ExternalCoderWorkspacesSection(props: {
+  workspaces: ExternalCoderWorkspace[];
+  onOpenInMux: (workspaceName: string) => void;
+}) {
+  const [expanded, setExpanded] = usePersistedState("external-coder-workspaces-expanded", false);
+
+  return (
+    <div className="border-hover border-t">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={cn(
+          "flex w-full items-center gap-1.5 px-3 py-2 text-left",
+          "hover:bg-hover cursor-pointer border-none bg-transparent",
+          "text-muted text-[11px] font-medium uppercase tracking-wider"
+        )}
+        aria-expanded={expanded}
+      >
+        <ChevronRight
+          size={10}
+          className="transition-transform duration-200"
+          style={{ transform: expanded ? "rotate(90deg)" : "rotate(0deg)" }}
+        />
+        Coder Workspaces
+        <span className="text-muted ml-auto text-[10px] font-normal opacity-50">
+          {props.workspaces.length}
+        </span>
+      </button>
+      {expanded &&
+        props.workspaces.map((ws) => (
+          <ExternalCoderWorkspaceItem
+            key={ws.name}
+            workspace={ws}
+            onOpenInMux={props.onOpenInMux}
+          />
+        ))}
+    </div>
+  );
+}
 
 // Memoize to prevent re-renders when props haven't changed
 const ProjectSidebar = React.memo(ProjectSidebarInner);

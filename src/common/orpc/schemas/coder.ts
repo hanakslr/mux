@@ -120,6 +120,24 @@ export const CoderListPresetsResultSchema = z.discriminatedUnion("ok", [
 
 export type CoderListPresetsResult = z.infer<typeof CoderListPresetsResultSchema>;
 
+// External Coder workspace — a workspace not managed by Mux, shown as second-class in the sidebar
+export const ExternalCoderWorkspaceSchema = z.object({
+  name: z.string(),
+  templateName: z.string(),
+  templateDisplayName: z.string(),
+  status: CoderWorkspaceStatusSchema,
+});
+
+export type ExternalCoderWorkspace = z.infer<typeof ExternalCoderWorkspaceSchema>;
+
+// External Coder workspace list result
+export const ExternalCoderWorkspacesResultSchema = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), workspaces: z.array(ExternalCoderWorkspaceSchema) }),
+  z.object({ ok: z.literal(false), error: z.string() }),
+]);
+
+export type ExternalCoderWorkspacesResult = z.infer<typeof ExternalCoderWorkspacesResultSchema>;
+
 // API schemas for coder namespace
 export const coder = {
   getInfo: {
@@ -140,5 +158,9 @@ export const coder = {
   listWorkspaces: {
     input: z.void(),
     output: CoderListWorkspacesResultSchema,
+  },
+  listExternalWorkspaces: {
+    input: z.void(),
+    output: ExternalCoderWorkspacesResultSchema,
   },
 };

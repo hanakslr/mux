@@ -794,7 +794,10 @@ export {
   CoderWorkspaceConfigSchema,
   CoderWorkspaceSchema,
   CoderWorkspaceStatusSchema,
+  ExternalCoderWorkspaceSchema,
+  ExternalCoderWorkspacesResultSchema,
 } from "./coder";
+export type { ExternalCoderWorkspace } from "./coder";
 
 // Workspace
 const DebugLlmRequestSnapshotSchema = z
@@ -1605,6 +1608,7 @@ export const config = {
       defaultModel: z.string().optional(),
       hiddenModels: z.array(z.string()).optional(),
       stopCoderWorkspaceOnArchive: z.boolean(),
+      showAllCoderWorkspaces: z.boolean(),
       runtimeEnablement: z.record(z.string(), z.boolean()),
       defaultRuntime: z.string().nullable(),
       agentAiDefaults: AgentAiDefaultsSchema,
@@ -1658,7 +1662,8 @@ export const config = {
   updateCoderPrefs: {
     input: z
       .object({
-        stopCoderWorkspaceOnArchive: z.boolean(),
+        stopCoderWorkspaceOnArchive: z.boolean().optional(),
+        showAllCoderWorkspaces: z.boolean().optional(),
       })
       .strict(),
     output: z.void(),

@@ -183,6 +183,7 @@ export function CoderWorkspaceForm(props: CoderWorkspaceFormProps) {
       onCoderConfigChange({
         workspaceName: undefined,
         existingWorkspace: true,
+        remoteProjectPath: coderConfig?.remoteProjectPath,
       });
     } else {
       // Switch to new workspace mode (workspaceName omitted; backend derives from branch)
@@ -191,6 +192,7 @@ export function CoderWorkspaceForm(props: CoderWorkspaceFormProps) {
         existingWorkspace: false,
         template: firstTemplate?.name,
         templateOrg: firstTemplate?.organizationName,
+        remoteProjectPath: coderConfig?.remoteProjectPath,
       });
     }
   };
@@ -478,6 +480,27 @@ export function CoderWorkspaceForm(props: CoderWorkspaceFormProps) {
             )}
           </div>
         )}
+      </div>
+
+      {/* Remote project path — shared across both modes */}
+      <div className="border-border-medium flex h-7 items-center gap-2 border-t px-2 py-1">
+        <label className="text-muted-foreground shrink-0 text-xs">Path</label>
+        <input
+          type="text"
+          placeholder="/home/coder/project"
+          value={coderConfig?.remoteProjectPath ?? ""}
+          onChange={(e) =>
+            onCoderConfigChange({
+              ...coderConfig,
+              remoteProjectPath: e.target.value || undefined,
+            })
+          }
+          disabled={disabled}
+          className={cn(
+            "bg-background text-foreground placeholder:text-muted h-5 flex-1 rounded border px-1.5 text-xs",
+            "border-border-medium focus:border-accent focus:outline-none"
+          )}
+        />
       </div>
     </div>
   );

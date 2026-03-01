@@ -589,9 +589,27 @@ describe("CoderService", () => {
       expect(workspaces).toEqual({
         ok: true,
         workspaces: [
-          { name: "ws-1", templateName: "t1", templateDisplayName: "t1", status: "running" },
-          { name: "ws-2", templateName: "t2", templateDisplayName: "t2", status: "stopped" },
-          { name: "ws-3", templateName: "t3", templateDisplayName: "t3", status: "starting" },
+          {
+            name: "ws-1",
+            templateName: "t1",
+            templateDisplayName: "t1",
+            status: "running",
+            apps: [],
+          },
+          {
+            name: "ws-2",
+            templateName: "t2",
+            templateDisplayName: "t2",
+            status: "stopped",
+            apps: [],
+          },
+          {
+            name: "ws-3",
+            templateName: "t3",
+            templateDisplayName: "t3",
+            status: "starting",
+            apps: [],
+          },
         ],
       });
     });

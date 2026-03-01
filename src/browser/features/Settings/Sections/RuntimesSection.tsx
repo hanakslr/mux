@@ -5,6 +5,7 @@ import {
   CoderWorkspaceForm,
   resolveCoderAvailability,
 } from "@/browser/features/Runtime/CoderControls";
+import { CoderTemplateConfigSection } from "./CoderTemplateConfigSection";
 import { RuntimeConfigInput } from "@/browser/components/RuntimeConfigInput/RuntimeConfigInput";
 import {
   Select,
@@ -695,6 +696,11 @@ export function RuntimesSection() {
           })}
         </div>
       </div>
+
+      {/* Per-template Coder configuration (repo path, visible apps) */}
+      {effectiveEnablement.coder && coderAvailability.state === "available" && (
+        <CoderTemplateConfigSection templates={coderWorkspace.templates} />
+      )}
     </div>
   );
 }

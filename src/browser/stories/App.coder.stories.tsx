@@ -127,18 +127,21 @@ const mockWorkspaces: CoderWorkspace[] = [
     templateName: "coder-on-coder",
     templateDisplayName: "Coder on Coder",
     status: "running",
+    apps: [],
   },
   {
     name: "api-testing",
     templateName: "kubernetes-dev",
     templateDisplayName: "Kubernetes Dev",
     status: "running",
+    apps: [],
   },
   {
     name: "frontend-v2",
     templateName: "coder-on-coder",
     templateDisplayName: "Coder on Coder",
     status: "running",
+    apps: [],
   },
 ];
 

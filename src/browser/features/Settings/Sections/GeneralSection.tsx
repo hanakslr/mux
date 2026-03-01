@@ -163,6 +163,11 @@ export function GeneralSection() {
   const [stopCoderWorkspaceOnArchive, setStopCoderWorkspaceOnArchive] = useState(true);
   const stopCoderWorkspaceOnArchiveLoadNonceRef = useRef(0);
 
+  // Show all Coder workspaces in sidebar (default OFF).
+  // Shares the same load nonce as stopCoderWorkspaceOnArchive since both are loaded
+  // from a single getConfig() call.
+  const [showAllCoderWorkspaces, setShowAllCoderWorkspaces] = useState(false);
+
   // updateCoderPrefs writes config.json on the backend. Serialize (and coalesce) updates so rapid
   // toggles can't race and persist a stale value via out-of-order writes.
   const stopCoderWorkspaceOnArchiveUpdateChainRef = useRef<Promise<void>>(Promise.resolve());
@@ -184,6 +189,7 @@ export function GeneralSection() {
         }
 
         setStopCoderWorkspaceOnArchive(cfg.stopCoderWorkspaceOnArchive);
+        setShowAllCoderWorkspaces(cfg.showAllCoderWorkspaces);
       })
       .catch(() => {
         // Best-effort only. Keep the default (ON) if config fails to load.
@@ -226,6 +232,23 @@ export function GeneralSection() {
           .catch(() => {
             // Best-effort only.
           });
+    },
+    [api]
+  );
+
+  const handleShowAllCoderWorkspacesChange = useCallback(
+    (checked: boolean) => {
+      // Invalidate any in-flight getConfig() load so it doesn't overwrite the user's selection.
+      stopCoderWorkspaceOnArchiveLoadNonceRef.current++;
+      setShowAllCoderWorkspaces(checked);
+
+      if (!api?.config?.updateCoderPrefs) {
+        return;
+      }
+
+      void api.config.updateCoderPrefs({ showAllCoderWorkspaces: checked }).catch((err) => {
+        console.warn("Failed to persist showAllCoderWorkspaces", err);
+      });
     },
     [api]
   );
@@ -466,6 +489,22 @@ export function GeneralSection() {
           onCheckedChange={handleStopCoderWorkspaceOnArchiveChange}
           disabled={!api?.config?.updateCoderPrefs}
           aria-label="Toggle stopping the dedicated Coder workspace when archiving a Mux workspace"
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex-1">
+          <div className="text-foreground text-sm">Show all Coder workspaces in sidebar</div>
+          <div className="text-muted text-xs">
+            When enabled, all your Coder workspaces appear in a separate section at the bottom of
+            the sidebar — not just ones created through Mux.
+          </div>
+        </div>
+        <Switch
+          checked={showAllCoderWorkspaces}
+          onCheckedChange={handleShowAllCoderWorkspacesChange}
+          disabled={!api?.config?.updateCoderPrefs}
+          aria-label="Toggle showing all Coder workspaces in the sidebar"
         />
       </div>
 

@@ -445,11 +445,19 @@ export class CoderService {
         return result;
       }
 
+      // Fetch the wildcard app hostname for subdomain-based app access.
+      // Non-fatal: if it fails, app icons just won't be clickable.
+      let appHost: string | undefined;
+      if (whoami?.url) {
+        appHost = await this.fetchAppHostname(whoami.url);
+      }
+
       const availableInfo: CoderInfo = {
         state: "available",
         version,
         ...(whoami?.username ? { username: whoami.username } : {}),
         ...(whoami?.url ? { url: whoami.url } : {}),
+        ...(appHost ? { appHost } : {}),
       };
 
       this.cachedInfo = availableInfo;
@@ -603,6 +611,40 @@ export class CoderService {
   private async getDeploymentUrl(): Promise<string> {
     const { url } = await this.getWhoamiData({ useCache: true });
     return url;
+  }
+
+  /**
+   * Fetch the wildcard app hostname from the Coder deployment.
+   * Returns the hostname without the leading `*.` wildcard prefix
+   * (e.g. "workspaces.coder.example.com"), or undefined on failure.
+   */
+  private async fetchAppHostname(deploymentUrl: string): Promise<string | undefined> {
+    try {
+      return await this.withApiSession("mux-app-host", async (api) => {
+        const url = new URL("/api/v2/applications/host", deploymentUrl).toString();
+
+        // Use Electron's net.fetch for system cert trust (same pattern as getTemplateRichParameters)
+        let fetchFn: (input: string, init?: RequestInit) => Promise<Response> = fetch;
+        if (process.versions.electron) {
+          // eslint-disable-next-line no-restricted-syntax
+          const { net } = await import("electron");
+          fetchFn = net.fetch;
+        }
+
+        const response = await fetchFn(url, {
+          headers: { "Coder-Session-Token": api.token },
+        });
+
+        if (!response.ok) return undefined;
+
+        const data = (await response.json()) as { host?: string };
+        // Strip the leading `*.` wildcard prefix: "*.workspaces.example.com" → "workspaces.example.com"
+        return data.host?.replace(/^\*\./, "") || undefined;
+      });
+    } catch (error) {
+      log.debug("Failed to fetch Coder app hostname", { error });
+      return undefined;
+    }
   }
 
   /**
@@ -972,6 +1014,18 @@ export class CoderService {
         template_display_name: string;
         latest_build: {
           status: string;
+          resources?: Array<{
+            agents?: Array<{
+              apps?: Array<{
+                slug: string;
+                display_name: string;
+                icon: string;
+                url: string;
+                external: boolean;
+                hidden: boolean;
+              }>;
+            }>;
+          }>;
         };
       }>;
 
@@ -980,12 +1034,40 @@ export class CoderService {
         ok: true,
         workspaces: workspaces
           .filter((w) => KNOWN_STATUSES.has(w.latest_build.status))
-          .map((w) => ({
-            name: w.name,
-            templateName: w.template_name,
-            templateDisplayName: w.template_display_name || w.template_name,
-            status: w.latest_build.status as CoderWorkspaceStatus,
-          })),
+          .map((w) => {
+            // Flatten resources[].agents[].apps[] into a deduplicated array
+            const seenSlugs = new Set<string>();
+            const apps: Array<{
+              slug: string;
+              displayName: string;
+              icon: string;
+              url: string;
+              external: boolean;
+            }> = [];
+            for (const resource of w.latest_build.resources ?? []) {
+              for (const agent of resource.agents ?? []) {
+                for (const app of agent.apps ?? []) {
+                  if (app.hidden || seenSlugs.has(app.slug)) continue;
+                  seenSlugs.add(app.slug);
+                  apps.push({
+                    slug: app.slug,
+                    displayName: app.display_name || app.slug,
+                    icon: app.icon || "",
+                    url: app.url || "",
+                    external: app.external ?? false,
+                  });
+                }
+              }
+            }
+
+            return {
+              name: w.name,
+              templateName: w.template_name,
+              templateDisplayName: w.template_display_name || w.template_name,
+              status: w.latest_build.status as CoderWorkspaceStatus,
+              apps,
+            };
+          }),
       };
     } catch (error) {
       const message = sanitizeCoderCliErrorForUi(error);

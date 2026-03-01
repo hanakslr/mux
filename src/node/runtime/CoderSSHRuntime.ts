@@ -20,7 +20,7 @@ import type {
   EnsureReadyResult,
   RuntimeStatusEvent,
 } from "./Runtime";
-import { SSHRuntime, type SSHRuntimeConfig } from "./SSHRuntime";
+import { SSHRuntime, computeBaseRepoPath, type SSHRuntimeConfig } from "./SSHRuntime";
 import type { SSHTransport } from "./transports";
 import type { CoderWorkspaceConfig, RuntimeConfig } from "@/common/types/runtime";
 import { isSSHRuntime } from "@/common/types/runtime";
@@ -74,6 +74,7 @@ const CODER_STATUS_POLL_INTERVAL_MS = 2_000;
 export class CoderSSHRuntime extends SSHRuntime {
   private coderConfig: CoderWorkspaceConfig;
   private readonly coderService: CoderService;
+  private readonly initialWorkspaceName?: string;
 
   /**
    * Timestamp of last time we (a) successfully used the runtime or (b) decided not
@@ -117,6 +118,27 @@ export class CoderSSHRuntime extends SSHRuntime {
     super(baseConfig, transport, options);
     this.coderConfig = config.coder;
     this.coderService = coderService;
+    this.initialWorkspaceName = options?.workspaceName;
+  }
+
+  /**
+   * Return remoteProjectPath for the initial workspace (the one whose repo
+   * already exists on the Coder VM). Forks get standard paths because their
+   * workspace name differs from the initial one.
+   *
+   * During creation, initialWorkspaceName is unset (not passed to constructor),
+   * so we return remoteProjectPath for any name. During fork, initialWorkspaceName
+   * IS set, so only the source workspace matches — the new workspace gets a
+   * standard path.
+   */
+  override getWorkspacePath(projectPath: string, workspaceName: string): string {
+    if (
+      this.coderConfig.remoteProjectPath &&
+      (!this.initialWorkspaceName || workspaceName === this.initialWorkspaceName)
+    ) {
+      return this.coderConfig.remoteProjectPath;
+    }
+    return super.getWorkspacePath(projectPath, workspaceName);
   }
 
   /** In-flight ensureReady promise to avoid duplicate start/wait sequences */
@@ -539,6 +561,29 @@ export class CoderSSHRuntime extends SSHRuntime {
     // Deleting a Coder workspace is dangerous; CoderService refuses to delete workspaces
     // without the mux- prefix to avoid accidentally deleting user-owned Coder workspaces.
 
+    // When remoteProjectPath is set and this is the initial workspace, skip rm -rf
+    // (the user's repo already existed there) but still delete the Coder workspace if mux-created.
+    if (this.coderConfig.remoteProjectPath && workspaceName === this.initialWorkspaceName) {
+      const deletedPath = this.getWorkspacePath(projectPath, workspaceName);
+
+      if (!this.coderConfig.existingWorkspace && this.coderConfig.workspaceName) {
+        try {
+          const deleteResult = await this.coderService.deleteWorkspaceEventually(
+            this.coderConfig.workspaceName,
+            { timeoutMs: 60_000, signal: abortSignal, waitForExistence: false }
+          );
+          if (!deleteResult.success) {
+            return { success: false, error: `Failed to delete Coder workspace: ${deleteResult.error}` };
+          }
+        } catch (error) {
+          const message = getErrorMessage(error);
+          return { success: false, error: `Failed to delete Coder workspace: ${message}` };
+        }
+      }
+
+      return { success: true, deletedPath };
+    }
+
     // If this workspace is an existing Coder workspace that mux didn't create, just do SSH cleanup.
     if (this.coderConfig.existingWorkspace) {
       return super.deleteWorkspace(projectPath, workspaceName, force, abortSignal, trusted);
@@ -704,7 +749,13 @@ export class CoderSSHRuntime extends SSHRuntime {
 
     // Both workspaces now share the Coder workspace - mark as existing so
     // deleting either mux workspace won't destroy the underlying Coder workspace
-    const sharedCoderConfig = { ...this.coderConfig, existingWorkspace: true };
+    // Forks get standard paths — clear remoteProjectPath so the fork's
+    // getWorkspacePath() falls through to the default computation.
+    const sharedCoderConfig = {
+      ...this.coderConfig,
+      existingWorkspace: true,
+      remoteProjectPath: undefined,
+    };
 
     // Update this instance's config so postCreateSetup() skips coder create
     this.coderConfig = sharedCoderConfig;
@@ -842,6 +893,50 @@ export class CoderSSHRuntime extends SSHRuntime {
       log.error("Failed to create workspace parent directory", { parentDir, error: errorMsg });
       initLogger.logStderr(`Failed to prepare workspace directory: ${errorMsg}`);
       throw new Error(`Failed to prepare workspace directory: ${errorMsg}`);
+    }
+
+    // When remoteProjectPath is set, the repo already exists on the remote —
+    // create the shared bare base repo from it so forks/worktrees work normally.
+    // initWorkspace will see the existing git repo and skip the bundle sync.
+    if (this.coderConfig.remoteProjectPath) {
+      initLogger.logStep(
+        `Using existing repo at ${this.coderConfig.remoteProjectPath} (skipping code sync)`
+      );
+      const baseRepoPath = computeBaseRepoPath(
+        this.getConfig().srcBaseDir,
+        params.projectPath
+      );
+      const baseRepoPathArg = expandTildeForSSH(baseRepoPath);
+      const remotePathArg = expandTildeForSSH(this.coderConfig.remoteProjectPath);
+
+      initLogger.logStep("Creating base repo from existing project...");
+      const cloneResult = await execBuffered(
+        this,
+        `git clone --bare ${remotePathArg} ${baseRepoPathArg}`,
+        { cwd: "/tmp", timeout: 60, abortSignal }
+      );
+      if (cloneResult.exitCode !== 0) {
+        const errorMsg = cloneResult.stderr || cloneResult.stdout || "Unknown error";
+        log.error("Failed to create base repo from remote project", { error: errorMsg });
+        initLogger.logStderr(`Failed to create base repo: ${errorMsg}`);
+        throw new Error(`Failed to create base repo: ${errorMsg}`);
+      }
+
+      // Copy origin URL from the existing repo so fetch/push work
+      const setOriginResult = await execBuffered(
+        this,
+        `origin=$(git -C ${remotePathArg} remote get-url origin 2>/dev/null) && ` +
+          `git -C ${baseRepoPathArg} remote set-url origin "$origin" 2>/dev/null || true`,
+        { cwd: "/tmp", timeout: 10, abortSignal }
+      );
+      if (setOriginResult.exitCode !== 0) {
+        // Non-fatal — the repo may not have an origin
+        log.debug("Could not copy origin URL to base repo", {
+          stderr: setOriginResult.stderr,
+        });
+      }
+
+      initLogger.logStep("Base repo created from existing project");
     }
 
     this.lastActivityAtMs = Date.now();

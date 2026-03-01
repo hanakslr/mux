@@ -120,6 +120,12 @@ export interface ProjectsConfig {
    */
   stopCoderWorkspaceOnArchive?: boolean;
 
+  /**
+   * When true, show all Coder workspaces (not just Mux-created ones) in the left sidebar.
+   * External workspaces appear in a separate, visually subdued section.
+   */
+  showAllCoderWorkspaces?: boolean;
+
   /** Global default runtime for new workspaces. */
   defaultRuntime?: RuntimeEnablementId;
 

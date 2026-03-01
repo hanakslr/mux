@@ -10,6 +10,7 @@ import type { FrontendWorkspaceMetadata } from "@/common/types/workspace";
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useDrag } from "react-dnd";
 import { getEmptyImage } from "react-dnd-html5-backend";
+import { CoderWorkspaceApps } from "./CoderWorkspaceApps";
 import { GitStatusIndicator } from "../GitStatusIndicator/GitStatusIndicator";
 
 import { Tooltip, TooltipTrigger, TooltipContent } from "../Tooltip/Tooltip";
@@ -684,6 +685,7 @@ function RegularWorkspaceListItemInner(props: WorkspaceListItemProps) {
                   tooltipPosition="right"
                   isWorking={isWorking}
                 />
+                <CoderWorkspaceApps metadata={metadata} />
               </div>
             )}
           </div>
